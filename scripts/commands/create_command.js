@@ -24,6 +24,7 @@ import {
 
 // Optional in‑memory only var
 export let spawnProtectionRange = 32;
+export let maxEntities = 30;
 
 /**
  * @param {Entity} player
@@ -137,6 +138,12 @@ export function chatCommand() {
       getPropertiesCommandFunction
     );
     console.log(`${serverConsoleTitle} Registered getproperties command.`);
+
+    event.customCommandRegistry.registerCommand(
+      maxEntitiesCommand,
+      maxEntitiesCommandFunction
+    );
+    console.log(`${serverConsoleTitle} Registered maxentities command.`);
 
     event.customCommandRegistry.registerCommand(
       pingCommand,
@@ -441,6 +448,57 @@ export function getPropertiesCommandFunction(data) {
     return {
       status: CustomCommandStatus.Failure,
       message: "Invalid entity.",
+    };
+  }
+}
+
+/**
+ * @type {import('@minecraft/server').CustomCommand}
+ */
+const maxEntitiesCommand = {
+  name: "falkraft:maxentities",
+  description:
+    "Sets the maximum number of entities allowed (does not include players).",
+  mandatoryParameters: [],
+  optionalParameters: [
+    {
+      name: "amount",
+      type: CustomCommandParamType.Integer,
+    },
+  ],
+  cheatsRequired: false,
+  permissionLevel: CommandPermissionLevel.Admin,
+};
+
+/**
+ * @param {import('@minecraft/server').CustomCommandOrigin} data
+ * @param {number} [maxEntities=30]
+ * @returns {import('@minecraft/server').CustomCommandResult}
+ */
+export function maxEntitiesCommandFunction(data, maxEntities = 30) {
+  const entity = data.sourceEntity;
+  if (
+    !(entity instanceof Player) ||
+    data.sourceType === CustomCommandSource.Server
+  ) {
+    return {
+      status: CustomCommandStatus.Failure,
+      message: "Invalid entity or source.",
+    };
+  }
+
+  const amount = maxEntities;
+  if (amount !== undefined) {
+    maxEntities = Math.max(0, Number(amount));
+    return {
+      status: CustomCommandStatus.Success,
+      message: `Max entities set to ${maxEntities}.`,
+    };
+  } else {
+    maxEntities = 30;
+    return {
+      status: CustomCommandStatus.Success,
+      message: `Max entities reset to ${maxEntities}.`,
     };
   }
 }

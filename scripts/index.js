@@ -13,7 +13,7 @@ import {
 } from "@minecraft/server";
 import { mainPlayerExec } from "./players.js";
 import { anticheat } from "./anticheat";
-import { chatCommand } from "./commands/create_command";
+import { chatCommand, maxEntities } from "./commands/create_command";
 import { beforePlayerGameModeChange } from "./before-events/player-gamemode-change.js";
 import { beforePlayerInteractWithEntity } from "./before-events/player-interact-with-entity.js";
 import { afterItemUse } from "./after-events/item-use.js";
@@ -246,8 +246,6 @@ world.afterEvents.worldLoad.subscribe(() => {
           const players =
             world.getAllPlayers() ??
             entities.filter((entity) => entity.typeId === "minecraft:player");
-
-          const maxEntities = 30;
 
           if (entities.length > maxEntities) {
             // Handle case with many entities
