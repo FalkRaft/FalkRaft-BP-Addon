@@ -1,0 +1,32 @@
+{
+  "format_version": 2,
+  "header": {
+    "description": "This behaviour pack is the core at which the FalkRaft server runs on, containing the anticheat, custom commands, and optimizations to make the server playable for all low-end devices, while still stopping hackers from ever joining your server.",
+    "min_engine_version": [1, 21, 20],
+    "name": "FalkRaft BP v1.0.0-stable",
+    "uuid": "ddd07695-8930-4ab2-a4d8-cd09bb63c6a3",
+    "version": [1, 0, 0]
+  },
+  "modules": [
+    {
+      "description": "The custom commands for FalkRaft, and partly the anticheat, and performance optimisations.",
+      "type": "data",
+      "uuid": "ae5f435c-4004-44d5-a621-042f5b6b0786",
+      "version": [1, 0, 0]
+    },
+    {
+      "description": "The scripts for FalkRaft, containing the anticheat, and the performance optimisations.",
+      "entry": "scripts/index.js",
+      "language": "javascript",
+      "type": "script",
+      "uuid": "4bed50a6-0c54-4c11-870f-df4018df7cf6",
+      "version": [1, 0, 0]
+    }
+  ],
+  "dependencies": [
+    {
+      "module_name": "@minecraft/server",
+      "version": "2.1.0"
+    }
+  ]
+}
