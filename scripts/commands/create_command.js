@@ -475,7 +475,7 @@ const maxEntitiesCommand = {
  * @param {number} [maxEntities=30]
  * @returns {import('@minecraft/server').CustomCommandResult}
  */
-export function maxEntitiesCommandFunction(data, maxEntities = 30) {
+export function maxEntitiesCommandFunction(data, maxentities = 30) {
   const entity = data.sourceEntity;
   if (
     !(entity instanceof Player) ||
@@ -487,18 +487,20 @@ export function maxEntitiesCommandFunction(data, maxEntities = 30) {
     };
   }
 
-  const amount = maxEntities;
+  const amount = maxentities;
   if (amount !== undefined) {
-    maxEntities = Math.max(0, Number(amount));
+    maxentities = Math.max(0, Number(amount));
+    maxEntities = maxentities;
     return {
       status: CustomCommandStatus.Success,
-      message: `Max entities set to ${maxEntities}.`,
+      message: `Max entities set to ${maxentities}.`,
     };
   } else {
-    maxEntities = 30;
+    maxentities = 30;
+    maxEntities = maxentities;
     return {
       status: CustomCommandStatus.Success,
-      message: `Max entities reset to ${maxEntities}.`,
+      message: `Max entities reset to ${maxentities}.`,
     };
   }
 }
