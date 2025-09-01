@@ -558,6 +558,7 @@ export function pingCommandFunction(data) {
       (async () => {
         player.sendMessage({ translate: "Pong!" });
         const latency = Date.now() - now;
+        player.sendMessage({ text: `Latency: ${latency} ms` });
         return {
           status: CustomCommandStatus.Success,
           message: `Latency: ${latency} ms`,
@@ -573,6 +574,7 @@ export function pingCommandFunction(data) {
       (async () => {
         console.log("Pong!");
         const latency = Date.now() - now;
+        console.log(`Latency: ${latency} ms`);
         return {
           status: CustomCommandStatus.Success,
           message: `Latency: ${latency} ms`,
