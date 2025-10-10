@@ -20,11 +20,13 @@ import {
   resetConfigToDefault,
   saveConfig,
   setConfig,
+  getConfigFromWorld,
 } from "../config.js";
 
 // Optional in‑memory only var
 export let spawnProtectionRange = 32;
 export let maxEntities = 30;
+export let reach_scalar = 1.5;
 
 /**
  * @param {Entity} player
@@ -56,7 +58,7 @@ export function getTargetBlockCoords(
 
 // Helper to format only known config keys from the working config store
 export const formatConfig = () =>
-  Array.from(defaultConfig.keys())
+  Array.from(getConfigFromWorld().keys())
     .map((confKey) => `${confKey}: ${String(getConfig(confKey))}`)
     .join(",\n");
 
@@ -67,6 +69,20 @@ export const formatConfig = () =>
  */
 export function chatCommand() {
   system.beforeEvents.startup.subscribe((event) => {
+    (async () => {
+      if ((await getConfigFromWorld()) === undefined) {
+        resetConfigToDefault();
+        saveConfig();
+        world.sendMessage({
+          translate: `${serverChatTitle} Default config loaded!`,
+        });
+        console.log(`${serverConsoleTitle} Default config loaded!`);
+      }
+      console.log(
+        `${serverConsoleTitle} Dynamic properties byte count: ${world.getDynamicPropertyTotalByteCount()} bytes.`
+      );
+    })();
+
     console.log(`${serverConsoleTitle} Custom commands are registering...`);
 
     // Register enums (A-Z)
@@ -81,7 +97,7 @@ export function chatCommand() {
     ]);
     event.customCommandRegistry.registerEnum(
       "falkraft:key",
-      Array.from(defaultConfig?.keys() ?? [])
+      Array.from(defaultConfig.keys() ?? [])
     );
     event.customCommandRegistry.registerEnum("falkraft:logging", [
       "simple",
@@ -150,6 +166,39 @@ export function chatCommand() {
       pingCommandFunction
     );
     console.log(`${serverConsoleTitle} Registered ping command.`);
+
+    configCommand.name = "falkraft:reachscalar";
+    configCommand.mandatoryParameters = [];
+    configCommand.optionalParameters = [
+      {
+        name: "value",
+        type: CustomCommandParamType.Float,
+      },
+    ];
+    configCommand.description =
+      "Sets the reach scalar value. The default is 1.5. This is used in the reach checks.";
+    configCommandFunction = (data, value) => {
+      if (!data.sourceEntity || !(data.sourceEntity instanceof Player))
+        return {
+          status: CustomCommandStatus.Failure,
+          message:
+            "Invalid source entity. Source entity is required for this command and must be an entity, e.g. player.",
+        };
+      if (typeof value !== "number" || isNaN(value))
+        return {
+          status: CustomCommandStatus.Failure,
+          message: "Invalid value. Value must be a number.",
+        };
+      reach_scalar = value;
+      return {
+        status: CustomCommandStatus.Success,
+        message: `Reach scalar set to ${value}.`,
+      };
+    };
+    event.customCommandRegistry.registerCommand(
+      configCommand,
+      configCommandFunction
+    );
 
     event.customCommandRegistry.registerCommand(
       resetConfigCommand,
@@ -326,12 +375,12 @@ export function configCommandFunction(data, key, value) {
     };
 
   const k = String(key);
-  const validKeys = new Set(Array.from(defaultConfig.keys()));
+  const validKeys = new Set(Array.from(getConfigFromWorld().keys()));
   if (!validKeys.has(k))
     return {
       status: CustomCommandStatus.Failure,
       message: `Invalid config. Please use one of the following keys: ${Array.from(
-        defaultConfig.keys()
+        getConfigFromWorld().keys()
       ).join(",\n")}`,
     };
 

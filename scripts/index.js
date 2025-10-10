@@ -22,10 +22,7 @@ import { afterScriptEventReceive } from "./after-events/scriptevent-receive.js";
 import { antiNuker } from "./anticheat/anti-nuker";
 import { anti32k } from "./anticheat/anti-32k";
 import {
-  defaultConfig,
   getConfig,
-  getConfigFromWorld,
-  resetConfigToDefault,
   saveConfig,
 } from "./config.js";
 import { Flags } from "./flags.js";
@@ -181,43 +178,40 @@ beforePlayerGameModeChange();
 system.waitTicks(5);
 beforePlayerInteractWithEntity();
 
+system.beforeEvents.shutdown.subscribe(() => {
+  // Cleanup or save state here
+  saveConfig();
+});
+
+world.beforeEvents.playerLeave.subscribe((data) => {
+  console.log(`${data.player.name} left the game. ID: ${data.player.id}, TypeID: ${data.player.typeId}`);
+  saveConfig();
+});
+
 console.log("Loading afterEvents...");
 
 import { customkb } from "./kb.js";
 
+/// * afterEvents
+afterItemUse();
+system.waitTicks(5);
+afterPlayerSpawn();
+system.waitTicks(5);
+afterScriptEventReceive();
+system.waitTicks(5);
+antiNuker();
+system.waitTicks(5);
+anti32k();
+system.waitTicks(5);
+
 world.afterEvents.worldLoad.subscribe(() => {
   try {
-    /// * afterEvents
-    afterItemUse();
-    system.waitTicks(5);
-    afterPlayerSpawn();
-    system.waitTicks(5);
-    afterScriptEventReceive();
-    system.waitTicks(5);
-    antiNuker();
-    system.waitTicks(5);
-    anti32k();
-
-    system.beforeEvents.shutdown.subscribe(() => {
-      // Cleanup or save state here
-      saveConfig();
-    });
 
     const start1 = Date.now();
     if (
-      getConfigFromWorld() !== defaultConfig &&
-      getConfigFromWorld() === undefined
+      !Boolean(world.scoreboard.getObjective("status")) ||
+      !world.scoreboard.getObjective("status").isValid
     ) {
-      resetConfigToDefault();
-      saveConfig();
-      world.sendMessage({
-        translate: `${serverChatTitle} Default config loaded!`,
-      });
-    }
-    console.log(
-      `${serverConsoleTitle} Dynamic properties byte count: ${world.getDynamicPropertyTotalByteCount()} bytes.`
-    );
-    if (!Boolean(world.scoreboard.getObjective("status"))) {
       world.scoreboard.addObjective("status", "§cHP§r");
     }
 
