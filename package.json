@@ -12,6 +12,8 @@
   "packageManager": "pnpm@10.15.0",
   "dependencies": {
     "@minecraft/server": "2.1.0",
+    "fs": "^0.0.1-security",
+    "https": "^1.0.0",
     "molang": "^2.0.1"
   }
 }

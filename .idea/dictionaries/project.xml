@@ -14,7 +14,6 @@
       <w>flya</w>
       <w>flyb</w>
       <w>gamemode</w>
-      <w>getblocktypeid</w>
       <w>gettps</w>
       <w>gettpscommand</w>
       <w>gettpscommandfunc</w>
@@ -40,16 +39,12 @@
       <w>predictedpos</w>
       <w>prevrot</w>
       <w>rcpstime</w>
-      <w>resetconfig</w>
       <w>setdisplay</w>
-      <w>setslot</w>
       <w>showalltimes</w>
       <w>skogsstuga</w>
-      <w>spawnprotectionrange</w>
       <w>sprintsneak</w>
       <w>stuga</w>
       <w>tellraw</w>
-      <w>testfor</w>
       <w>tickcount</w>
     </words>
   </dictionary>

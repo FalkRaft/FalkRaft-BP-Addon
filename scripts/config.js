@@ -1,5 +1,5 @@
 import { Flags } from "./flags.js";
-import { world } from "@minecraft/server";
+import { system, world } from "@minecraft/server";
 import { spawnProtectionRange } from "./commands/create_command.js";
 export { spawnProtectionRange };
 
@@ -57,21 +57,40 @@ export function saveConfig() {
 }
 
 // 6. Read raw values from a world, parse arrays if needed
-export function getConfigFromWorld() {
+export async function getConfigFromWorld() {
   const result = new Map();
-  for (const key of world.getDynamicPropertyIds()) {
-    const raw = world.getDynamicProperty(key);
-    const def = config.get(key);
+  try {
+    for (const key of world.getDynamicPropertyIds()) {
+      const raw = world.getDynamicProperty(key);
+      const def = config.get(key);
 
-    if (Array.isArray(def) && typeof raw === "string") {
-      try {
-        result.set(key, JSON.parse(raw));
-      } catch {
-        result.set(key, def);
+      if (Array.isArray(def) && typeof raw === "string") {
+        try {
+          result.set(key, JSON.parse(raw));
+        } catch {
+          result.set(key, def);
+        }
+      } else {
+        result.set(key, raw);
       }
-    } else {
-      result.set(key, raw);
     }
+  } catch (error) {
+    system.run(() => {
+      for (const key of world.getDynamicPropertyIds()) {
+        const raw = world.getDynamicProperty(key);
+        const def = config.get(key);
+
+        if (Array.isArray(def) && typeof raw === "string") {
+          try {
+            result.set(key, JSON.parse(raw));
+          } catch {
+            result.set(key, def);
+          }
+        } else {
+          result.set(key, raw);
+        }
+      }
+    });
   }
   return result;
 }
