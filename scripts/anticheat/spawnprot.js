@@ -3,7 +3,7 @@
 import { GameMode, system, world } from "@minecraft/server";
 import { serverChatTitle } from "../index.js";
 import { getConfig } from "../config";
-import { computePlayerStates } from "../players.js";
+import { reachChecksBeforeBreak, reachChecksBeforeInteract } from "./reach.js";
 
 /**
  * @param {import('@minecraft/server').Vector3} coords1
@@ -23,22 +23,6 @@ export function SpawnProtection(
     ) {
       return;
     }
-
-    /// For stricter vertical movement
-    // const states = computePlayerStates(
-    //   data.player,
-    //   data.player.location,
-    //   data.player.getVelocity()
-    // );
-    // if (!data.player.isOnGround && states.isOnGround || states.onEighthBoundary) {
-    //   const { x: vx, y: vy, z: vz } = data.player.getVelocity();
-    //   system.run(() => data.player.applyKnockback({ x: vx / 2, z: vz / 2 }, -Math.abs(vy)) / 2);
-    //   if (data.player.hasTag("dev")) {
-    //     data.player.sendMessage({
-    //       translate: `${serverChatTitle} Correction applied.`,
-    //     });
-    //   }
-    // }
 
     const blockLoc = {
       x: data.block.x,
@@ -89,6 +73,8 @@ export function SpawnProtection(
         });
       }
     });
+
+    reachChecksBeforeInteract(data);
   });
 
   world.beforeEvents.playerInteractWithBlock.subscribe((data) => {
@@ -99,22 +85,6 @@ export function SpawnProtection(
     ) {
       return;
     }
-
-    /// For stricter vertical movement
-    // const states = computePlayerStates(
-    //   data.player,
-    //   data.player.location,
-    //   data.player.getVelocity()
-    // );
-    // const { x: vx, y: vy, z: vz } = data.player.getVelocity();
-    // if (!data.player.isOnGround && states.isOnGround || states.onEighthBoundary) {
-    //   system.run(() => data.player.applyKnockback({ x: vx / 2, z: vz / 2 }, -Math.abs(vy)) / 2);
-    //   if (data.player.hasTag("dev")) {
-    //     data.player.sendMessage({
-    //       translate: `${serverChatTitle} Correction applied.`,
-    //     });
-    //   }
-    // }
 
     const blockLoc = {
       x: data.block.x,
@@ -166,5 +136,7 @@ export function SpawnProtection(
         });
       }
     });
+
+    reachChecksBeforeBreak(data);
   });
 }

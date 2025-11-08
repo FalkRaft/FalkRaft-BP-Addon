@@ -1,9 +1,16 @@
 "use strict";
 
-import { EntityComponentTypes, Player, system } from "@minecraft/server";
+import {
+  EntityComponentTypes,
+  Player,
+  system,
+  TicksPerSecond,
+  world,
+} from "@minecraft/server";
 import { betaPlayerFeatures } from "./beta.js";
 import { flag } from "./index.js";
 import { Flags } from "./flags.js";
+import { getConfig, ConfigKeys } from "./config.js";
 
 const IllegalPositionIDs = new Map([
   ["NetherPortalInEndTeleport", 121],
@@ -282,11 +289,12 @@ export function mainPlayerExec(player) {
     ],
     minDistance: 0.2,
   });
-  for (let i = 0; i < entitiesCloseToPlayer.length; i++)
+  for (let i = 0; i < entitiesCloseToPlayer.length; i++) {
     entitiesCloseToPlayer[i].addEffect("weakness", 2, {
       amplifier: 255,
       showParticles: false,
     });
+  }
 
   const inventory = player.getComponent(EntityComponentTypes.Inventory);
   const inventoryContainer = inventory.container;
@@ -390,32 +398,208 @@ export function mainPlayerExec(player) {
   // Trigger only when any coordinate magnitude is >= 2^21 and up to 2^32.
   // The amplifier equals the power (the base-2 exponent) clamped to [21,32].
   // Use commands (as if from command blocks) so effect comes from server commands.
-  {
-    const absX = Math.abs(px);
-    const absY = Math.abs(py);
-    const absZ = Math.abs(pz);
-    const maxCoord = Math.max(absX, absY, absZ);
+  const absX = Math.abs(px);
+  const absY = Math.abs(py);
+  const absZ = Math.abs(pz);
+  const maxCoord = Math.max(absX, absY, absZ);
 
-    const MIN_POW = 21;
-    const MAX_POW = 32;
-    const MIN_DIST = 2 ** MIN_POW;
-    const MAX_DIST = 2 ** MAX_POW;
+  const MIN_POW = 21;
+  const MAX_POW = 32;
+  const MIN_DIST = 2 ** MIN_POW;
+  const MAX_DIST = 2 ** MAX_POW;
 
+  if (maxCoord >= MIN_DIST && maxCoord <= MAX_DIST) {
+    // floor(log2(distance)) gives the exponent/power for the highest set bit.
+    let power = Math.floor(Math.log2(maxCoord));
+    // clamp to requested range just in case of edge rounding
+    power = Math.round(Math.max(MIN_POW, Math.min(MAX_POW, power)) / 4); // scale down for effect amplifier
+
+    // Duration set short and refreshed each tick by this script (10 seconds).
+    // Using command form so it's equivalent to placing a command block that gives the effect.
+    try {
+      player.runCommand(`effect ${player.name} speed 10 ${power} true`);
+    } catch (e) {}
+  }
+
+  if (
+    (maxCoord >= MIN_DIST &&
+      maxCoord <= MAX_DIST &&
+      !player.dimension.getBlockBelow(pos)?.isAir) ||
+    !player.dimension.getBlockBelow(pos)?.isLiquid ||
+    player.dimension.getBlockBelow(pos) !== undefined ||
+    ["minecraft:short_grass", "minecraft:tall_grass", "minecraft:fern"].some(
+      (T) => player.dimension.getBlockBelow(pos).typeId !== T
+    ) ||
+    !player.dimension.getBlockBelow(pos).typeId.includes("flower")
+  ) {
     if (maxCoord >= MIN_DIST && maxCoord <= MAX_DIST) {
-      // floor(log2(distance)) gives the exponent/power for the highest set bit.
-      let power = Math.floor(Math.log2(maxCoord));
-      // clamp to requested range just in case of edge rounding
-      power = Math.max(MIN_POW, Math.min(MAX_POW, power));
-
-      // Duration set short and refreshed each tick by this script (2 seconds).
-      // Using command form so it's equivalent to placing a command block that gives the effect.
       try {
-        player.runCommand(`effect @s speed 2 ${power} true`);
+        const topMostBlock = player.dimension.getTopmostBlock(
+          { x: px, z: pz },
+          py + 1
+        );
+        if (topMostBlock) {
+          const boat = player.dimension.spawnEntity("minecraft:boat", {
+            x: px + vx,
+            y: Math.trunc(topMostBlock.y) + 0.545,
+            z: pz + vz,
+          });
+          boat.teleport({
+            x: px + vx,
+            y: Math.trunc(topMostBlock.y) + 0.545,
+            z: pz + vz,
+          });
+          if (py < topMostBlock.y) player.teleport(topMostBlock.location);
+          if (player.hasTag("dev")) system.run(() => boat.remove());
+          else boat.remove();
+        }
       } catch (e) {
-        // ignore command failures (server shutdown or permission issues)
+        if (player.hasTag("dev")) player.sendMessage(`${e} ${e.stack}`);
       }
     }
   }
 
+  if (maxCoord >= 16777216) {
+    try {
+      player.teleport({ x: px - vx, y: py - vy, z: pz - vz });
+    } catch (e) {}
+  }
+
+  let jobID = 0;
+
+  if (
+    (player.dimension.getBlock(pos.y > 320 ? { x: px, y: 320, z: pz } : pos)
+      ?.typeId === "minecraft:portal" &&
+      player.dimension === world.getDimension("the_end")) ||
+    player.dimension.id === "the_end"
+  ) {
+    player.teleport(world.getDefaultSpawnLocation(), {
+      dimension: player.dimension,
+    });
+    jobID = system.runJob(portalDetector());
+  }
+
+  function* portalDetector() {
+    for (let i = px - 5; i < px + 5; i++) {
+      for (let j = py - 5; j < py + 5; j++) {
+        for (let k = pz - 5; k < pz + 5; k++) {
+          const block = player.dimension.getBlock({ x: i, y: j, z: k });
+          if (block?.typeId === "minecraft:portal") {
+            block.setType("minecraft:air");
+          }
+          yield;
+        }
+      }
+    }
+  }
+
+  system.runTimeout(() => system.clearJob(jobID), TicksPerSecond);
+
+  const armour_stand = player.dimension.spawnEntity(
+    "minecraft:armor_stand",
+    player.location
+  );
+
+  armour_stand.applyKnockback({ x: vx, z: vz }, vy);
+  armour_stand.setRotation(player.getRotation());
+  armour_stand.lookAt(player.getViewDirection());
+
+  const { ax, ay, az } = armour_stand.location;
+
+  const movement_threshold =
+    getConfig(ConfigKeys.MOVEMENT_ACCEPTANCE_THRESHOLD) ?? 0.5;
+
+  if (
+    px > ax + movement_threshold ||
+    px < ax - movement_threshold ||
+    py > ay + movement_threshold ||
+    py < ay - movement_threshold ||
+    pz > az + movement_threshold ||
+    pz < az - movement_threshold
+  ) {
+    player.teleport(armour_stand.location);
+    player.applyKnockback({ x: vx, z: vz }, vy);
+  }
+
+  armour_stand.remove();
+
+  const topMostBlock = player.dimension.getTopmostBlock(
+    { x: px, z: pz },
+    py + 1
+  );
+
+  const { tmbx, tmby, tmbz } = topMostBlock.center();
+  const isPassable =
+    player.dimension.getBlockBelow(pos, { includePassableBlocks: true }) ===
+    topMostBlock;
+
+  if (
+    !topMostBlock.isAir &&
+    !topMostBlock.isLiquid &&
+    topMostBlock.isLiquidBlocking() &&
+    topMostBlock !== undefined &&
+    py < Math.ceil(tmby) &&
+    !isPassable
+  ) {
+    player.teleport({ x: tmbx, y: Math.ceil(tmby), z: tmbz });
+    player.applyKnockback({ x: vx, z: vz }, vy);
+  }
+  // Enable beta features and compute beta-related dynamic properties
   betaPlayerFeatures(player);
+
+  // compute speed (magnitude of velocity): v = sqrt(vx^2 + vy^2 + vz^2)
+  const v = Math.sqrt(vx * vx + vy * vy + vz * vz);
+
+  system.runTimeout(() => {
+    const vel2 = player.getVelocity(); // get current velocity vector {x, y, z}
+
+    // NOTE: this repeats the exact same computation as `v` and will have the same value.
+    // likely a bug: `v2` should be the previous speed (from the last tick) to compute acceleration.
+    const v2 = Math.sqrt(vel2.x * vel2.x + vel2.y * vel2.y + vel2.z * vel2.z);
+
+    // compute acceleration as change in speed over time:
+    // accel = (v2 - v) / (1/20)  where (1/20) looks like a timestep (0.05s).
+    // because v2 === v here, accel will always be 0. If v2 were previous speed,
+    // this implements a = Δv / Δt with Δt = 1/20s.
+    const dt = 1 / TicksPerSecond; // time step in seconds (assuming 20 ticks per second)
+    const accel = (v2 - v) / dt;
+
+    const { px2, py2, pz2 } = player.location; // get current position {x, y, z}
+
+    // Euclidean distance between current position `pos` and previous (px,py,pz)
+    const dist = Math.sqrt(
+      (px2 - px) * (px2 - px) +
+        (py2 - py) * (py2 - py) +
+        (pz2 - pz) * (pz2 - pz)
+    );
+
+    // movement vector from previous position to current, scaled by 20.
+    // multiplying by 20 likely converts displacement per tick (1/20s) into velocity per second:
+    // mv = (pos - prevPos) / (1/20)  => (pos - prevPos) * 20
+    const mv = {
+      x: (px2 - px) * TicksPerSecond,
+      y: (py2 - py) * TicksPerSecond,
+      z: (pz2 - pz) * TicksPerSecond,
+    };
+
+    if (accel === 0 && dist > 4) {
+      // if no acceleration but moved more than 4 meters in last tick
+      flag(player, Flags.SPEED, { accel, dist, mv });
+      // apply immediate knockback & schedule reapplications for the next 2 ticks
+      player.applyKnockback({ x: mv.x, z: mv.z }, mv.y);
+    }
+
+    if (mv.y === 0 && dist === 0 && vel2 === 0) {
+      // if no vertical movement and no horizontal movement
+      const armour_stand = player.dimension.spawnEntity(
+        "minecraft:armor_stand",
+        pos
+      );
+      armour_stand.addEffect("invisibility", 5, { showParticles: false });
+      armour_stand.applyKnockback({ x: vx, z: vz }, vy);
+      system.runTimeout(() => {
+        armour_stand.remove();
+      }, 6);
+    }
+  }, 1);
 }

@@ -8,6 +8,7 @@ import {
   Entity,
   EntityComponentTypes,
   ItemStack,
+  ItemTypes,
   Player,
   system,
   TicksPerSecond,
@@ -15,16 +16,15 @@ import {
 } from "@minecraft/server";
 import { serverChatTitle, serverConsoleTitle } from "../index.js";
 import {
-  defaultConfig,
+  defaultBooleanConfig,
+  defaultNumberConfig,
   getConfig,
   resetConfigToDefault,
   saveConfig,
   setConfig,
+  getConfigFromWorld,
+  ConfigKeys,
 } from "../config.js";
-
-// Optional in‑memory only var
-export let spawnProtectionRange = 32;
-export let maxEntities = 30;
 
 /**
  * @param {Entity} player
@@ -56,7 +56,7 @@ export function getTargetBlockCoords(
 
 // Helper to format only known config keys from the working config store
 export const formatConfig = () =>
-  Array.from(defaultConfig.keys())
+  Array.from(getConfigFromWorld().keys())
     .map((confKey) => `${confKey}: ${String(getConfig(confKey))}`)
     .join(",\n");
 
@@ -67,6 +67,20 @@ export const formatConfig = () =>
  */
 export function chatCommand() {
   system.beforeEvents.startup.subscribe((event) => {
+    () => {
+      if (getConfigFromWorld() === undefined) {
+        resetConfigToDefault();
+        saveConfig();
+        world.sendMessage({
+          translate: `${serverChatTitle} Default config loaded!`,
+        });
+        console.log(`${serverConsoleTitle} Default config loaded!`);
+      }
+      console.log(
+        `${serverConsoleTitle} Dynamic properties byte count: ${world.getDynamicPropertyTotalByteCount()} bytes.`
+      );
+    };
+
     console.log(`${serverConsoleTitle} Custom commands are registering...`);
 
     // Register enums (A-Z)
@@ -78,10 +92,21 @@ export function chatCommand() {
       EntityComponentTypes.Hunger,
       EntityComponentTypes.Saturation,
       EntityComponentTypes.Exhaustion,
+      EntityComponentTypes.FlyingSpeed,
     ]);
     event.customCommandRegistry.registerEnum(
       "falkraft:key",
-      Array.from(defaultConfig?.keys() ?? [])
+      Array.from(
+        new Set([
+          ...(defaultBooleanConfig?.keys?.()
+            ? Array.from(defaultBooleanConfig.keys())
+            : []),
+          ...(typeof defaultNumberConfig !== "undefined" &&
+          defaultNumberConfig?.keys?.()
+            ? Array.from(defaultNumberConfig.keys())
+            : []),
+        ])
+      )
     );
     event.customCommandRegistry.registerEnum("falkraft:logging", [
       "simple",
@@ -103,6 +128,28 @@ export function chatCommand() {
       configCommandFunction
     );
     console.log(`${serverConsoleTitle} Registered config command.`);
+
+    event.customCommandRegistry.registerCommand(
+      enderchestCommand,
+      enderchestCommandFunction
+    );
+    enderchestCommand.name = "falkraft:ec";
+    event.customCommandRegistry.registerCommand(
+      enderchestCommand,
+      enderchestCommandFunction
+    );
+    console.log(`${serverConsoleTitle} Registered enderchest command.`);
+
+    event.customCommandRegistry.registerCommand(
+      fillCommand,
+      fillCommandFunction
+    );
+    fillCommand.name = "falkraft:fillblocks";
+    event.customCommandRegistry.registerCommand(
+      fillCommand,
+      fillCommandFunction
+    );
+    console.log(`${serverConsoleTitle} Registered fill command.`);
 
     event.customCommandRegistry.registerCommand(
       getBlockCommand,
@@ -139,11 +186,11 @@ export function chatCommand() {
     );
     console.log(`${serverConsoleTitle} Registered getproperties command.`);
 
-    event.customCommandRegistry.registerCommand(
-      maxEntitiesCommand,
-      maxEntitiesCommandFunction
-    );
-    console.log(`${serverConsoleTitle} Registered maxentities command.`);
+    // event.customCommandRegistry.registerCommand(
+    //   maxEntitiesCommand,
+    //   maxEntitiesCommandFunction
+    // );
+    // console.log(`${serverConsoleTitle} Registered maxentities command.`);
 
     event.customCommandRegistry.registerCommand(
       pingCommand,
@@ -156,6 +203,12 @@ export function chatCommand() {
       resetConfigCommandFunction
     );
     console.log(`${serverConsoleTitle} Registered reset config command.`);
+
+    event.customCommandRegistry.registerCommand(
+      setRotationCommand,
+      setRotationCommandFunction
+    );
+    console.log(`${serverConsoleTitle} Registered set rotation command.`);
 
     event.customCommandRegistry.registerCommand(
       setSlotCommand,
@@ -221,16 +274,16 @@ export function attributeCommandFunction(data, componentId, value) {
   const id = componentId; // Expecting either EntityComponentTypes.* or the matching string id
   const trySet = (typeConst) => {
     const comp = data.sourceEntity.getComponent(typeConst);
-    if (!comp)
-      return {
-        ok: false,
-        msg: `Component ${String(typeConst)} not found on source entity.`,
-      };
-    if (typeof comp.setCurrentValue !== "function")
-      return {
-        ok: false,
-        msg: `Component ${String(typeConst)} does not support setCurrentValue.`,
-      };
+    // if (!comp)
+    //   return {
+    //     ok: false,
+    //     msg: `Component ${String(typeConst)} not found on source entity.`,
+    //   };
+    // if (typeof comp.setCurrentValue !== "function")
+    //   return {
+    //     ok: false,
+    //     msg: `Component ${String(typeConst)} does not support setCurrentValue.`,
+    //   };
     const newVal = Number.isFinite(Number(value))
       ? Number(value)
       : comp.defaultValue;
@@ -239,7 +292,10 @@ export function attributeCommandFunction(data, componentId, value) {
     } catch (error) {
       comp.value = newVal;
     }
-    return { ok: true };
+    return {
+      ok: true,
+      msg: `Set ${String(typeConst)} to ${newVal} successfully.`,
+    };
   };
 
   let result;
@@ -266,6 +322,9 @@ export function attributeCommandFunction(data, componentId, value) {
       case EntityComponentTypes.Exhaustion:
         result = trySet(EntityComponentTypes.Exhaustion);
         break;
+      case EntityComponentTypes.FlyingSpeed:
+        result = trySet(EntityComponentTypes.FlyingSpeed);
+        break;
       default:
         result = { ok: false, msg: `Unsupported component id: ${id}` };
         break;
@@ -280,7 +339,7 @@ export function attributeCommandFunction(data, componentId, value) {
   }
   return {
     status: CustomCommandStatus.Success,
-    message: "Attribute command executed successfully.",
+    message: result?.msg ?? "Attribute command executed successfully.",
   };
 }
 
@@ -300,7 +359,7 @@ export const configCommand = {
   optionalParameters: [
     {
       name: "value",
-      type: CustomCommandParamType.Boolean,
+      type: CustomCommandParamType.Float,
     },
   ],
   permissionLevel: CommandPermissionLevel.Admin,
@@ -310,7 +369,7 @@ export const configCommand = {
  * @description Function to handle the config command.
  * @param data {import('@minecraft/server').CustomCommandOrigin} - The data object containing the command parameters.
  * @param key {string} - The config to modify.
- * @param value {boolean} - The value to set the setting to.
+ * @param value {number} - The value to set the setting to.
  * @returns {import('@minecraft/server').CustomCommandResult}
  */
 export function configCommandFunction(data, key, value) {
@@ -325,34 +384,361 @@ export function configCommandFunction(data, key, value) {
         "Invalid source entity. Source entity is required for this command and must be an entity, e.g. player, and must be a verified operator.",
     };
 
-  const k = String(key);
-  const validKeys = new Set(Array.from(defaultConfig.keys()));
+  const k = key;
+  const validKeys = new Set(Array.from(getConfigFromWorld().keys()));
   if (!validKeys.has(k))
     return {
       status: CustomCommandStatus.Failure,
       message: `Invalid config. Please use one of the following keys: ${Array.from(
-        defaultConfig.keys()
+        getConfigFromWorld().keys()
       ).join(",\n")}`,
     };
 
+  // Try to find a default value from known default maps if available
+  let defaultVal;
+  try {
+    if (
+      typeof defaultBooleanConfig !== "undefined" &&
+      defaultBooleanConfig.has(k)
+    ) {
+      defaultVal = defaultBooleanConfig.get(k);
+    } else if (
+      typeof defaultNumberConfig !== "undefined" &&
+      defaultNumberConfig.has(k)
+    ) {
+      defaultVal = defaultNumberConfig.get(k);
+    }
+  } catch (e) {
+    // ignore missing default maps
+  }
+
+  // Fallback to the current config value to infer type if no explicit default found
+  const currentVal = getConfig(k);
+  const inferredType =
+    typeof defaultVal !== "undefined" ? typeof defaultVal : typeof currentVal;
+
+  // If no value provided -> reset this key to its default
   if (value === undefined) {
-    setConfig(k, defaultConfig.get(k));
-    saveConfig();
+    let resetVal;
+    if (typeof defaultVal !== "undefined") {
+      resetVal = defaultVal;
+    } else {
+      // If we don't know the single-key default, reset all defaults then read the key
+      resetConfigToDefault();
+      resetVal = getConfig(k);
+    }
+    setConfig(k, resetVal);
     return {
       status: CustomCommandStatus.Success,
       message: `Reset '${k}' to default: ${String(
-        defaultConfig.get(k)
+        resetVal
       )}\nConfig:\n${formatConfig()}`,
     };
   }
 
-  setConfig(k, value);
-  saveConfig();
+  // Parse incoming value according to inferred type
+  let newVal;
+  if (inferredType === "boolean") {
+    if (typeof value === "boolean") {
+      newVal = value;
+    } else if (typeof value === "number") {
+      newVal = value !== 0;
+    } else {
+      const s = String(value).toLowerCase();
+      newVal = ["true", "1", "yes", "on"].includes(s);
+    }
+  } else if (inferredType === "number") {
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+      return {
+        status: CustomCommandStatus.Failure,
+        message: `Invalid numeric value for '${k}': ${String(value)}`,
+      };
+    }
+    newVal = n;
+  } else {
+    // Unknown type: try number first, then boolean fallback
+    const n = Number(value);
+    if (Number.isFinite(n)) {
+      newVal = n;
+    } else {
+      const s = String(value).toLowerCase();
+      newVal = ["true", "1", "yes", "on"].includes(s);
+    }
+  }
+
+  setConfig(k, newVal);
   return {
     status: CustomCommandStatus.Success,
     message: `Updated '${k}' to: ${String(
       getConfig(k)
     )}\nConfig:\n${formatConfig()}`,
+  };
+}
+
+/**
+ * @type {import('@minecraft/server').CustomCommand}
+ */
+export const enderchestCommand = {
+  name: "falkraft:enderchest",
+  description: "Opens the ender chest of the player.",
+  cheatsRequired: false,
+  mandatoryParameters: [
+    {
+      name: "falkraft:enderchest",
+      type: CustomCommandParamType.Enum,
+    },
+  ],
+  optionalParameters: [
+    {
+      name: "item",
+      type: CustomCommandParamType.ItemType,
+    },
+    {
+      name: "amount",
+      type: CustomCommandParamType.Integer,
+    },
+    {
+      name: "slot",
+      type: CustomCommandParamType.Integer,
+    },
+  ],
+  permissionLevel: CommandPermissionLevel.Any,
+};
+
+/**
+ * @description Function to handle the enderchest command.
+ * @param data {import('@minecraft/server').CustomCommandOrigin} - The data object containing the command parameters.
+ * @param enumData {string} - The enderchest action to perform.
+ * @param itemType {import('@minecraft/server').ItemType} - The item type to use.
+ */
+export function enderchestCommandFunction(
+  data,
+  enumData,
+  itemType,
+  amount = 1,
+  slot = 0
+) {
+  if (!data.sourceEntity || !(data.sourceEntity instanceof Player)) {
+    return {
+      status: CustomCommandStatus.Failure,
+      message:
+        "Invalid source entity. Source entity is required for this command and must be a player.",
+    };
+  }
+
+  // Handle the enderchest action
+  switch (enumData) {
+    case "get":
+      // Get the ender chest contents for the player
+      if (!itemType) {
+        let contents = [];
+        function* job(contents = []) {
+          for (let slotIndex = 0; slotIndex < 27; slotIndex++) {
+            const itemTypes = new ItemTypes.getAll();
+            for (
+              let itemTypeIndex = 0;
+              itemTypeIndex < itemTypes.length;
+              itemTypeIndex++
+            ) {
+              const item = new ItemStack(itemTypes[itemTypeIndex]);
+              if (
+                data.sourceEntity.runCommand(
+                  `tellraw @s[name=${data.sourceEntity.name},hasitem={item=${item.typeId},location=slot.enderchest,slot=${slotIndex}}] {"rawtext":[{"text":"${data.sourceEntity.name} could have item ${item.typeId} in ender chest slot ${slotIndex}"}]}`
+                ).successCount > 0
+              ) {
+                contents.push(item);
+                yield;
+              } else {
+                continue;
+              }
+            }
+          }
+        }
+        system.runJob(job(contents));
+        return {
+          status: CustomCommandStatus.Success,
+          message: `Retrieved ender chest contents: ${JSON.stringify(
+            contents
+          )}`,
+        };
+      } else {
+        if (
+          data.sourceEntity.runCommand(
+            `tellraw @s[name=${data.sourceEntity.name},hasitem={item=${
+              itemType.id
+            },location=slot.enderchest,slot=${slot},quantity=${
+              amount ?? 1
+            }}] {"rawtext":[{"text":"${data.sourceEntity.name} could have ${
+              amount ?? 1
+            } ${itemType.id} in ender chest."}]}`
+          ).successCount > 0
+        ) {
+          return {
+            status: CustomCommandStatus.Success,
+            message: `Successfully got ${amount ?? 1} ${itemType.id} from ${
+              data.sourceEntity.name
+            }'s enderchest.`,
+          };
+        }
+      }
+    case "set":
+      // Set the ender chest contents for the player
+      if (!itemType) {
+        return {
+          status: CustomCommandStatus.Failure,
+          message: "Invalid item type. Item type is required for this command.",
+        };
+      } else {
+        // Fill the ender chest with the specified item
+        const slotIndex = slot !== undefined ? slot : 0;
+        data.sourceEntity.runCommand(
+          `replaceitem entity @s slot.enderchest ${slotIndex} ${itemType.id} ${amount}`
+        );
+      }
+    case "clear":
+      // Clear the ender chest for the player
+      for (let i = 0; i < 27; i++) {
+        data.sourceEntity.runCommand(
+          `replaceitem entity @s slot.enderchest ${i} minecraft:air 1`
+        );
+      }
+      return {
+        status: CustomCommandStatus.Success,
+        message: "Cleared ender chest.",
+      };
+    default:
+      return {
+        status: CustomCommandStatus.Failure,
+        message: `Unknown ender chest action: ${enumData}`,
+      };
+  }
+}
+
+/**
+ * @type {import('@minecraft/server').CustomCommand}
+ */
+export const fillCommand = {
+  name: "falkraft:fillvolume",
+  description: "Fills a region with a specific block.",
+  cheatsRequired: true,
+  permissionLevel: CommandPermissionLevel.GameDirectors,
+  mandatoryParameters: [
+    {
+      name: "from",
+      type: CustomCommandParamType.Location,
+    },
+    {
+      name: "to",
+      type: CustomCommandParamType.Location,
+    },
+    {
+      name: "block",
+      type: CustomCommandParamType.BlockType,
+    },
+  ],
+  optionalParameters: [
+    {
+      name: "ignoreOutOfBounds",
+      type: CustomCommandParamType.Boolean,
+    },
+    {
+      name: "replace",
+      type: CustomCommandParamType.BlockType,
+    },
+  ],
+};
+
+/**
+ * @param {import("@minecraft/server").CustomCommandOrigin} data
+ * @param {import("@minecraft/server").Vector3} from
+ * @param {import("@minecraft/server").Vector3} to
+ * @param {import("@minecraft/server").BlockType} block
+ * @param {boolean} ignoreOutOfBounds
+ * @param {import("@minecraft/server").BlockType | null} replace
+ */
+export function fillCommandFunction(
+  data,
+  from,
+  to,
+  block,
+  ignoreOutOfBounds = false,
+  replace = null
+) {
+  if (!data.sourceEntity) {
+    return {
+      status: CustomCommandStatus.Failure,
+      message: "Invalid or no source entity.",
+    };
+  }
+
+  let count = 0;
+
+  /**
+   *
+   * @param {import("@minecraft/server").Vector3} from
+   * @param {import("@minecraft/server").Vector3} to
+   * @param {import("@minecraft/server").BlockType} block
+   * @param {import("@minecraft/server").BlockType} replace
+   * @param {boolean} ignoreOutOfBounds
+   */
+  function* fill(from, to, block, replace, ignoreOutOfBounds, count = 0) {
+    for (let x = Math.min(from.x, to.x); x <= Math.max(from.x, to.x); x++) {
+      for (let y = Math.min(from.y, to.y); y <= Math.max(from.y, to.y); y++) {
+        for (let z = Math.min(from.z, to.z); z <= Math.max(from.z, to.z); z++) {
+          const currentBlock = world
+            .getDimension(data.sourceEntity.dimension.id)
+            .getBlock({ x: x, y: y, z: z });
+          if (currentBlock && ignoreOutOfBounds) {
+            try {
+              if (replace === null || currentBlock.type === replace) {
+                world
+                  .getDimension(data.sourceEntity.dimension.id)
+                  .getBlock(x, y, z)
+                  .setType(block);
+                count++;
+                yield;
+              }
+            } catch (error) {
+              // Ignore out of bounds errors
+              count++;
+              yield;
+            }
+          } else if (currentBlock && !ignoreOutOfBounds) {
+            try {
+              if (replace === null || currentBlock.type === replace) {
+                world
+                  .getDimension(data.sourceEntity.dimension.id)
+                  .getBlock({ x: x, y: y, z: z })
+                  .setType(block);
+                count++;
+                yield;
+              }
+            } catch (error) {
+              return {
+                status: CustomCommandStatus.Failure,
+                message: "Fill location out of bounds." + String(error),
+              };
+            }
+          }
+        }
+      }
+    }
+  }
+
+  system.runTimeout(
+    () =>
+      system.runJob(fill(from, to, block, replace, ignoreOutOfBounds, count)),
+    1
+  );
+
+  return {
+    status: CustomCommandStatus.Success,
+    message: `Filled ${count} blocks from ${JSON.stringify(
+      from,
+      null,
+      2
+    )} to ${JSON.stringify(to, null, 2)}.`,
   };
 }
 
@@ -452,58 +838,58 @@ export function getPropertiesCommandFunction(data) {
   }
 }
 
-/**
- * @type {import('@minecraft/server').CustomCommand}
- */
-const maxEntitiesCommand = {
-  name: "falkraft:maxentities",
-  description:
-    "Sets the maximum number of entities allowed (does not include players).",
-  mandatoryParameters: [],
-  optionalParameters: [
-    {
-      name: "amount",
-      type: CustomCommandParamType.Integer,
-    },
-  ],
-  cheatsRequired: false,
-  permissionLevel: CommandPermissionLevel.Admin,
-};
+// /**
+//  * @type {import('@minecraft/server').CustomCommand}
+//  */
+// const maxEntitiesCommand = {
+//   name: "falkraft:maxentities",
+//   description:
+//     "Sets the maximum number of entities allowed (does not include players).",
+//   mandatoryParameters: [],
+//   optionalParameters: [
+//     {
+//       name: "amount",
+//       type: CustomCommandParamType.Integer,
+//     },
+//   ],
+//   cheatsRequired: false,
+//   permissionLevel: CommandPermissionLevel.Admin,
+// };
 
-/**
- * @param {import('@minecraft/server').CustomCommandOrigin} data
- * @param {number} [maxEntities=30]
- * @returns {import('@minecraft/server').CustomCommandResult}
- */
-export function maxEntitiesCommandFunction(data, maxentities = 30) {
-  const entity = data.sourceEntity;
-  if (
-    !(entity instanceof Player) ||
-    data.sourceType === CustomCommandSource.Server
-  ) {
-    return {
-      status: CustomCommandStatus.Failure,
-      message: "Invalid entity or source.",
-    };
-  }
+// /**
+//  * @param {import('@minecraft/server').CustomCommandOrigin} data
+//  * @param {number} [maxEntities=30]
+//  * @returns {import('@minecraft/server').CustomCommandResult}
+//  */
+// export function maxEntitiesCommandFunction(data, maxentities = 30) {
+//   const entity = data.sourceEntity;
+//   if (
+//     !(entity instanceof Player) ||
+//     data.sourceType === CustomCommandSource.Server
+//   ) {
+//     return {
+//       status: CustomCommandStatus.Failure,
+//       message: "Invalid entity or source.",
+//     };
+//   }
 
-  const amount = maxentities;
-  if (amount !== undefined) {
-    maxentities = Math.max(0, Number(amount));
-    maxEntities = maxentities;
-    return {
-      status: CustomCommandStatus.Success,
-      message: `Max entities set to ${maxentities}.`,
-    };
-  } else {
-    maxentities = 30;
-    maxEntities = maxentities;
-    return {
-      status: CustomCommandStatus.Success,
-      message: `Max entities reset to ${maxentities}.`,
-    };
-  }
-}
+//   const amount = maxentities;
+//   if (amount !== undefined) {
+//     maxentities = Math.max(0, Number(amount));
+//     maxEntities = maxentities;
+//     return {
+//       status: CustomCommandStatus.Success,
+//       message: `Max entities set to ${maxentities}.`,
+//     };
+//   } else {
+//     maxentities = 30;
+//     maxEntities = maxentities;
+//     return {
+//       status: CustomCommandStatus.Success,
+//       message: `Max entities reset to ${maxentities}.`,
+//     };
+//   }
+// }
 
 /**
  * @type {import('@minecraft/server').CustomCommand}
@@ -626,6 +1012,56 @@ export function resetConfigCommandFunction(data) {
 }
 
 /**
+ * @type {import("@minecraft/server").CustomCommand}
+ */
+export const setRotationCommand = {
+  name: "falkraft:setrotation",
+  description: "Sets your current main rotation.",
+  cheatsRequired: false,
+  permissionLevel: CommandPermissionLevel.Any,
+  optionalParameters: [],
+  mandatoryParameters: [
+    {
+      name: "rotX",
+      type: CustomCommandParamType.Float,
+    },
+    {
+      name: "rotY",
+      type: CustomCommandParamType.Float,
+    },
+  ],
+};
+
+/**
+ * @param {import("@minecraft/server").CustomCommandOrigin} data
+ * @param {number} rotX
+ * @param {number} rotY
+ * @returns {import("@minecraft/server").CustomCommandResult}
+ */
+export function setRotationCommandFunction(data, rotX = 0, rotY = 0) {
+  if (!data.sourceEntity || data.sourceType != CustomCommandSource.Entity) {
+    return {
+      status: CustomCommandStatus.Failure,
+      message:
+        "Invalid source entity. Source entity is required for this command and must be an entity, e.g. player.",
+    };
+  }
+
+  try {
+    system.run(() => data.sourceEntity.setRotation({ x: rotX, y: rotY }));
+    return {
+      status: CustomCommandStatus.Success,
+      message: "Successfully set the player's rotation.",
+    };
+  } catch (e) {
+    return {
+      status: CustomCommandStatus.Failure,
+      message: `Failed to set the player's rotation with error ${e} ${e.stack}`,
+    };
+  }
+}
+
+/**
  * @type {import('@minecraft/server').CustomCommand}
  */
 export const setSlotCommand = {
@@ -716,7 +1152,7 @@ export function spawnProtectionRangeCommandFunction(data, range = 32) {
       message:
         "Invalid source entity. Source entity is required for this command and must be an entity, e.g. player, and must be a verified operator.",
     };
-  spawnProtectionRange = range;
+  setConfig(ConfigKeys.SPAWN_PROTECTION_RANGE, range);
   return {
     status: CustomCommandStatus.Success,
     message: `Spawn protection range set to ${range} blocks.`,

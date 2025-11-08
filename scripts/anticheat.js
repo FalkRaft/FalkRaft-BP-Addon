@@ -7,7 +7,6 @@ import {
   EntityComponentTypes,
 } from "@minecraft/server";
 import { SpawnProtection } from "./anticheat/spawnprot.js";
-import { reachChecks } from "./anticheat/reach.js";
 import { Flags } from "./flags.js";
 import { flag } from "./index.js";
 import { itemAC } from "./anticheat/item.js";
@@ -193,7 +192,22 @@ export function anticheat() {
         z: currFeet.z - prevFeet.z,
       };
       const dist = Math.sqrt(mv.x * mv.x + mv.y * mv.y + mv.z * mv.z);
-      if (playerIsMoving && getConfig(Flags.PHASEA)) {
+
+      const absX = Math.abs(player.location.x);
+      const absY = Math.abs(player.location.y);
+      const absZ = Math.abs(player.location.z);
+      const maxCoord = Math.max(absX, absY, absZ);
+
+      const MIN_POW = 23;
+      const MAX_POW = 32;
+      const MIN_DIST = 2 ** MIN_POW;
+      const MAX_DIST = 2 ** MAX_POW;
+      if (
+        playerIsMoving &&
+        getConfig(Flags.PHASEA) &&
+        maxCoord < MIN_DIST &&
+        maxCoord < MAX_DIST
+      ) {
         if (dist > 0.001 && player.getGameMode() !== GameMode.Spectator) {
           const dir = { x: mv.x / dist, y: mv.y / dist, z: mv.z / dist };
 
@@ -208,26 +222,35 @@ export function anticheat() {
             maxDistance: dist,
           });
 
-          const collided =
-            ((hitFeet?.block ?? undefined) &&
-              (!hitFeet.block.isAir ?? undefined)) ||
-            ((hitHead?.block ?? undefined) &&
-              (!hitHead.block.isAir ?? undefined));
+          let collided = false;
+
+          try {
+            collided =
+              ((hitFeet?.block ?? undefined) &&
+                (!hitFeet.block.isAir ?? undefined)) ||
+              ((hitHead?.block ?? undefined) &&
+                (!hitHead.block.isAir ?? undefined));
+          } catch (e) {
+            collided = false;
+          }
 
           if (collided) {
             const lastSafe =
               player.getDynamicProperty("lastSafeLoc") ?? prevFeet;
             player.teleport(lastSafe, { rotation: player.getRotation() });
 
-            const feetInfo = hitFeet?.block
-              ? `${hitFeet.block.typeId} @ ${hitFeet.block.x},${hitFeet.block.y},${hitFeet.block.z}`
-              : "none";
-            const headInfo = hitHead?.block
-              ? `${hitHead.block.typeId} @ ${hitHead.block.x},${hitHead.block.y},${hitHead.block.z}`
-              : "none";
-            flag(player, Flags.PHASEA, `feet=${feetInfo} | head=${headInfo}`);
+            // const feetInfo = hitFeet?.block
+            //   ? `${hitFeet.block.typeId} @ ${hitFeet.block.x},${hitFeet.block.y},${hitFeet.block.z}`
+            //   : "none";
+            // const headInfo = hitHead?.block
+            //   ? `${hitHead.block.typeId} @ ${hitHead.block.x},${hitHead.block.y},${hitHead.block.z}`
+            //   : "none";
+            // flag(player, Flags.PHASEA, `feet=${feetInfo} | head=${headInfo}`);
             // apply immediate knockback & schedule reapplications for the next 2 ticks
-            player.applyKnockback({ x: mv.x * 2, z: mv.z * 2 }, mv.y * 2);
+            player.applyKnockback(
+              { x: dist * -dir.x + mv.x, z: dist * -dir.z + mv.z },
+              dist * -dir.y + mv.y
+            );
             // also set velocity directly for immediate effect
             player.setDynamicProperty("kbRemaining", 2);
           } else {
@@ -244,12 +267,9 @@ export function anticheat() {
       /**
        * GlideB - Detects if a player glides and moves.
        */
-      if (
-        player.isGliding &&
-        vel.y === 0 &&
-        getConfig(Flags.GLIDEB)
-      )
+      if (player.isGliding && vel.y === 0 && getConfig(Flags.GLIDEB)) {
         flag(player, Flags.GLIDEB, dist);
+      }
 
       /**
        * PhaseB - Detects if a player phases through blocks.
@@ -306,6 +326,7 @@ export function anticheat() {
     });
   }, 0);
 
+  // Spawn Protection
   let spawnProtRange = () => Number(-spawnProtectionRange);
 
   /// Anti-nuker
@@ -321,6 +342,4 @@ export function anticheat() {
       z: spawnProtRange(),
     }
   );
-
-  reachChecks();
 }

@@ -10,7 +10,16 @@ importers:
     dependencies:
       '@minecraft/server':
         specifier: 2.1.0
-        version: 2.1.0(@minecraft/vanilla-data@1.21.93)
+        version: 2.1.0(@minecraft/vanilla-data@1.21.100)
+      '@minecraft/vanilla-data':
+        specifier: ^1.21.100
+        version: 1.21.100
+      fs:
+        specifier: ^0.0.1-security
+        version: 0.0.1-security
+      https:
+        specifier: ^1.0.0
+        version: 1.0.0
       molang:
         specifier: ^2.0.1
         version: 2.0.1
@@ -25,8 +34,14 @@ packages:
     peerDependencies:
       '@minecraft/vanilla-data': '>=1.20.70'
 
-  '@minecraft/vanilla-data@1.21.93':
-    resolution: {integrity: sha512-w5SDYzS02D1i307mnCGdCsLnWpJN1wjWvrSqvCMcqVnTQzAGp6ID5sv6QrjX8FypFEvAgOSB2Isvw38yu3yDag==}
+  '@minecraft/vanilla-data@1.21.100':
+    resolution: {integrity: sha512-e0UtUhy94q3N74Z4YeCyrV9ppuqRgAbxnWumPlyEFMBtDyTWnpHfSFxVr4Q8NieCpKktY2dmUZulUp3g39dhWg==}
+
+  fs@0.0.1-security:
+    resolution: {integrity: sha512-3XY9e1pP0CVEUCdj5BmfIZxRBTSDycnbqhIOGec9QYtmVH2fbLpj86CFWkrNOkt/Fvty4KZG5lTglL9j/gJ87w==}
+
+  https@1.0.0:
+    resolution: {integrity: sha512-4EC57ddXrkaF0x83Oj8sM6SLQHAWXw90Skqu2M4AEWENZ3F02dFJE/GARA8igO79tcgYqGrD7ae4f5L3um2lgg==}
 
   molang@2.0.1:
     resolution: {integrity: sha512-zVD9mAgv6MmpVGj54hS1EzG86Q6P2bwt8sP8uHiQT65e2e92nbnItrpjH0C6W65YxXNXrbiaEI4N0DCkcjdEFA==}
@@ -35,11 +50,15 @@ snapshots:
 
   '@minecraft/common@1.2.0': {}
 
-  '@minecraft/server@2.1.0(@minecraft/vanilla-data@1.21.93)':
+  '@minecraft/server@2.1.0(@minecraft/vanilla-data@1.21.100)':
     dependencies:
       '@minecraft/common': 1.2.0
-      '@minecraft/vanilla-data': 1.21.93
+      '@minecraft/vanilla-data': 1.21.100
 
-  '@minecraft/vanilla-data@1.21.93': {}
+  '@minecraft/vanilla-data@1.21.100': {}
+
+  fs@0.0.1-security: {}
+
+  https@1.0.0: {}
 
   molang@2.0.1: {}

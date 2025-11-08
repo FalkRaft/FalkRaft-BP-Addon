@@ -19,13 +19,11 @@ import { beforePlayerInteractWithEntity } from "./before-events/player-interact-
 import { afterItemUse } from "./after-events/item-use.js";
 import { afterPlayerSpawn } from "./after-events/player-spawn.js";
 import { afterScriptEventReceive } from "./after-events/scriptevent-receive.js";
+import { afterPistonActivate } from "./after-events/piston-activate.js";
 import { antiNuker } from "./anticheat/anti-nuker";
 import { anti32k } from "./anticheat/anti-32k";
 import {
-  defaultConfig,
   getConfig,
-  getConfigFromWorld,
-  resetConfigToDefault,
   saveConfig,
 } from "./config.js";
 import { Flags } from "./flags.js";
@@ -103,7 +101,7 @@ export function flag(player, flag, value = 0) {
   });
 }
 
-export const dotProductThreshold = 0.72;
+export const dotProductThreshold = 0.38; // Adjust this value as needed; lower values are less strict
 
 /**
  * @param {Player} player
@@ -181,43 +179,42 @@ beforePlayerGameModeChange();
 system.waitTicks(5);
 beforePlayerInteractWithEntity();
 
+system.beforeEvents.shutdown.subscribe(() => {
+  // Cleanup or save state here
+  saveConfig();
+});
+
+world.beforeEvents.playerLeave.subscribe((data) => {
+  console.log(`${data.player.name} left the game. ID: ${data.player.id}, TypeID: ${data.player.typeId}`);
+  saveConfig();
+});
+
 console.log("Loading afterEvents...");
 
 import { customkb } from "./kb.js";
 
+/// * afterEvents
+afterItemUse();
+system.waitTicks(5);
+afterPlayerSpawn();
+system.waitTicks(5);
+afterScriptEventReceive();
+system.waitTicks(5);
+antiNuker();
+system.waitTicks(5);
+anti32k();
+system.waitTicks(5);
+afterPistonActivate();
+system.waitTicks(5);
+
 world.afterEvents.worldLoad.subscribe(() => {
   try {
-    /// * afterEvents
-    afterItemUse();
-    system.waitTicks(5);
-    afterPlayerSpawn();
-    system.waitTicks(5);
-    afterScriptEventReceive();
-    system.waitTicks(5);
-    antiNuker();
-    system.waitTicks(5);
-    anti32k();
-
-    system.beforeEvents.shutdown.subscribe(() => {
-      // Cleanup or save state here
-      saveConfig();
-    });
 
     const start1 = Date.now();
     if (
-      getConfigFromWorld() !== defaultConfig &&
-      getConfigFromWorld() === undefined
+      !Boolean(world.scoreboard.getObjective("status")) ||
+      !world.scoreboard.getObjective("status").isValid
     ) {
-      resetConfigToDefault();
-      saveConfig();
-      world.sendMessage({
-        translate: `${serverChatTitle} Default config loaded!`,
-      });
-    }
-    console.log(
-      `${serverConsoleTitle} Dynamic properties byte count: ${world.getDynamicPropertyTotalByteCount()} bytes.`
-    );
-    if (!Boolean(world.scoreboard.getObjective("status"))) {
       world.scoreboard.addObjective("status", "§cHP§r");
     }
 
@@ -274,9 +271,9 @@ world.afterEvents.worldLoad.subscribe(() => {
       });
 
       const start2 = Date.now();
-      const players = world.getAllPlayers();
+      const players = world.getAllPlayers().filter((p) => p.isValid);
 
-      for (let i = 0; i < players.length; i += 2) {
+      for (let i = 0; i < players.length; i++) {
         try {
           mainPlayerExec(players[i]);
         } catch (err) {

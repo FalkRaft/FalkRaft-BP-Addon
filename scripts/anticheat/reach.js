@@ -1,78 +1,55 @@
 "use strict";
 
-import { world, GameMode, system } from "@minecraft/server";
-import { serverChatTitle } from "../index.js";
+import { system, world } from "@minecraft/server";
+import { reach_scalar } from "../commands/create_command";
 
-export function reachChecks() {
-  world.beforeEvents.playerInteractWithBlock.subscribe((data) => {
-    const block = data.block;
-    const player = data.player;
-    const bloc = block.location;
-    const ploc = player.getHeadLocation();
-    const playerReach = player.getDynamicProperty("reach");
-    const distance =
-      Math.sqrt(
-        Math.pow(ploc.x - bloc.x, 2) +
-          Math.pow(ploc.y - bloc.y, 2) +
-          Math.pow(ploc.z - bloc.z, 2)
-      ) / 2;
-    if (distance > playerReach && player.getGameMode() === GameMode.Creative) {
-      data.cancel = true;
-      system.run(() =>
-        world.sendMessage({
-          translate: `${serverChatTitle} §e${
-            player.name
-          }§c used reach! Reach: §e${distance.toFixed(8)}§c blocks.`,
-        })
-      );
-    } else if (
-      (distance > playerReach && player.getGameMode() === GameMode.Survival) ||
-      player.getGameMode() === GameMode.Adventure
-    ) {
-      data.cancel = true;
-      system.run(() =>
-        world.sendMessage({
-          translate: `${serverChatTitle} §e${
-            player.name
-          }§c used reach! Reach: §e${distance.toFixed(8)}§c blocks.`,
-        })
-      );
-    }
-  });
+/**
+ * @param {import("@minecraft/server").PlayerInteractWithBlockBeforeEvent} beforeInteract
+ */
+export function reachChecksBeforeInteract(beforeInteract) {
+  const player = beforeInteract.player;
+  const blockInView = player.getBlockFromViewDirection();
+  const bloc = blockInView.block.center();
+  const ploc = player.getHeadLocation();
+  const playerReach = 5;
+  const distance = Math.sqrt(
+    Math.pow(bloc.x - ploc.x, 2) +
+      Math.pow(bloc.y - ploc.y, 2) +
+      Math.pow(bloc.z - ploc.z, 2)
+  ); // using pythagorean theorem to find distance between two points in 3d space
+  if (distance > playerReach * (reach_scalar * reach_scalar)) {
+    beforeInteract.cancel = true;
+    system.runTimeout(
+      () =>
+        beforeInteract.block.setPermutation(beforeInteract.block.permutation),
+      1
+    );
+  }
+}
 
-  world.beforeEvents.playerBreakBlock.subscribe((data) => {
-    const block = data.block;
-    const player = data.player;
-    const bloc = block.location;
-    const ploc = player.getHeadLocation();
-    const playerReach = player.getDynamicProperty("reach");
-    const distance =
-      Math.sqrt(
-        Math.pow(ploc.x - bloc.x, 2) +
-          Math.pow(ploc.y - bloc.y, 2) +
-          Math.pow(ploc.z - bloc.z, 2)
-      ) / 2;
-    if (distance > playerReach && player.getGameMode() === GameMode.Creative) {
-      data.cancel = true;
-      system.run(() =>
-        world.sendMessage({
-          translate: `${serverChatTitle} §e${
-            player.name
-          }§c used reach! Reach: §e${distance.toFixed(8)}§c blocks.`,
-        })
-      );
-    } else if (
-      (distance > playerReach && player.getGameMode() === GameMode.Survival) ||
-      player.getGameMode() === GameMode.Adventure
-    ) {
-      data.cancel = true;
-      system.run(() =>
-        world.sendMessage({
-          translate: `${serverChatTitle} §e${
-            player.name
-          }§c used reach! Reach: §e${distance.toFixed(8)}§c blocks.`,
-        })
-      );
-    }
-  });
+/**
+ * @param {import("@minecraft/server").PlayerBreakBlockBeforeEvent} beforeBreak
+ */
+export function reachChecksBeforeBreak(beforeBreak) {
+  const player = beforeBreak.player;
+  const block = beforeBreak.block;
+  const bloc = {
+    x: block.x + 0.5,
+    y: block.y + 0.5,
+    z: block.z + 0.5,
+  };
+  const ploc = player.getHeadLocation();
+  const playerReach = 5;
+  const distance = Math.sqrt(
+    Math.pow(bloc.x - ploc.x, 2) +
+      Math.pow(bloc.y - ploc.y, 2) +
+      Math.pow(bloc.z - ploc.z, 2)
+  ); // using pythagorean theorem to find distance between two points in 3d space
+  if (distance > playerReach * (reach_scalar * reach_scalar)) {
+    beforeBreak.cancel = true;
+    system.runTimeout(
+      () => beforeBreak.block.setPermutation(beforeBreak.block.permutation),
+      1
+    );
+  }
 }
