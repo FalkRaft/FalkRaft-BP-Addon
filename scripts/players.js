@@ -1,7 +1,10 @@
 "use strict";
 
 import {
+  BlockTypes,
+  BlockVolume,
   EntityComponentTypes,
+  LiquidType,
   Player,
   system,
   TicksPerSecond,
@@ -480,17 +483,18 @@ export function mainPlayerExec(player) {
   }
 
   function* portalDetector() {
-    for (let i = px - 5; i < px + 5; i++) {
-      for (let j = py - 5; j < py + 5; j++) {
-        for (let k = pz - 5; k < pz + 5; k++) {
-          const block = player.dimension.getBlock({ x: i, y: j, z: k });
-          if (block?.typeId === "minecraft:portal") {
-            block.setType("minecraft:air");
-          }
-          yield;
-        }
-      }
-    }
+    const dimension = player.dimension;
+    const portalBlockVolume = new BlockVolume(
+      { x: px - 1, y: py - 1, z: pz - 1 },
+      { x: px + 1, y: py + 3, z: pz + 1 }
+    );
+    dimension.fillBlocks(portalBlockVolume, "minecraft:air", {
+      blockFilter: {
+        includeTypes: ["minecraft:portal"],
+        excludeTypes: BlockTypes.getAll().filter(T => T.id !== "minecraft:portal").length,
+      },
+      ignoreChunkBoundErrors: true,
+    });
   }
 
   system.runTimeout(() => system.clearJob(jobID), TicksPerSecond);
@@ -536,7 +540,7 @@ export function mainPlayerExec(player) {
   if (
     !topMostBlock.isAir &&
     !topMostBlock.isLiquid &&
-    topMostBlock.isLiquidBlocking() &&
+    topMostBlock.isLiquidBlocking(LiquidType.Water) &&
     topMostBlock !== undefined &&
     py < Math.ceil(tmby) &&
     !isPassable

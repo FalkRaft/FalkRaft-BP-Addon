@@ -1,7 +1,7 @@
 "use strict";
 
-import { system, world } from "@minecraft/server";
-import { reach_scalar } from "../commands/create_command";
+import { system } from "@minecraft/server";
+import { ConfigKeys, getConfig } from "../config";
 
 /**
  * @param {import("@minecraft/server").PlayerInteractWithBlockBeforeEvent} beforeInteract
@@ -12,6 +12,7 @@ export function reachChecksBeforeInteract(beforeInteract) {
   const bloc = blockInView.block.center();
   const ploc = player.getHeadLocation();
   const playerReach = 5;
+  const reach_scalar = getConfig(ConfigKeys.REACH_DISTANCE_SCALAR_MULTIPLIER) ?? 1.5;
   const distance = Math.sqrt(
     Math.pow(bloc.x - ploc.x, 2) +
       Math.pow(bloc.y - ploc.y, 2) +

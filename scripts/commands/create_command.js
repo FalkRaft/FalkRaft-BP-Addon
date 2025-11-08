@@ -1,6 +1,7 @@
 "use strict";
 
 import {
+  BlockVolume,
   CommandPermissionLevel,
   CustomCommandParamType,
   CustomCommandSource,
@@ -96,7 +97,9 @@ export function chatCommand() {
     ]);
     event.customCommandRegistry.registerEnum(
       "falkraft:key",
-      Array.from(defaultConfig?.keys() ?? [])
+      Array.from(defaultBooleanConfig?.keys() ?? []).concat(
+        Array.from(defaultNumberConfig?.keys() ?? [])
+      )
     );
     event.customCommandRegistry.registerEnum("falkraft:logging", [
       "simple",
@@ -705,55 +708,31 @@ export function fillCommandFunction(
    * @param {import("@minecraft/server").BlockType} replace
    * @param {boolean} ignoreOutOfBounds
    */
-  function* fill(from, to, block, replace, ignoreOutOfBounds, count = 0) {
-    for (let x = Math.min(from.x, to.x); x <= Math.max(from.x, to.x); x++) {
-      for (let y = Math.min(from.y, to.y); y <= Math.max(from.y, to.y); y++) {
-        for (let z = Math.min(from.z, to.z); z <= Math.max(from.z, to.z); z++) {
-          const currentBlock = world
-            .getDimension(data.sourceEntity.dimension.id)
-            .getBlock({ x: x, y: y, z: z });
-          if (currentBlock && ignoreOutOfBounds) {
-            try {
-              if (replace === null || currentBlock.type === replace) {
-                world
-                  .getDimension(data.sourceEntity.dimension.id)
-                  .getBlock(x, y, z)
-                  .setType(block);
-                count++;
-                yield;
-              }
-            } catch (error) {
-              // Ignore out of bounds errors
-              count++;
-              yield;
-            }
-          } else if (currentBlock && !ignoreOutOfBounds) {
-            try {
-              if (replace === null || currentBlock.type === replace) {
-                world
-                  .getDimension(data.sourceEntity.dimension.id)
-                  .getBlock({ x: x, y: y, z: z })
-                  .setType(block);
-                count++;
-                yield;
-              }
-            } catch (error) {
-              return {
-                status: CustomCommandStatus.Failure,
-                message: "Fill location out of bounds." + String(error),
-              };
-            }
-          }
-        }
-      }
+  function fill(from, to, block, replace, ignoreOutOfBounds, count = 0) {
+    try {
+      const dimension = data.sourceEntity.dimension;
+      const blockVolume = new BlockVolume(from, to);
+      count = dimension
+        .fillBlocks(blockVolume, block, {
+          ignoreOutOfBounds: ignoreOutOfBounds,
+          replace: replace || undefined,
+        })
+        .getCapacity();
+      count += count;
+    } catch (e) {
+      return {
+        status: CustomCommandStatus.Failure,
+        message: `Error filling blocks: ${e.message}`,
+      };
     }
   }
 
-  system.runTimeout(
-    () =>
-      system.runJob(fill(from, to, block, replace, ignoreOutOfBounds, count)),
-    1
-  );
+  function* job() {
+    fill(from, to, block, replace, ignoreOutOfBounds, count);
+    yield;
+  }
+
+  system.runJob(job());
 
   return {
     status: CustomCommandStatus.Success,

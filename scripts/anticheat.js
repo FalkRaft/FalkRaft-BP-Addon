@@ -10,7 +10,7 @@ import { SpawnProtection } from "./anticheat/spawnprot.js";
 import { Flags } from "./flags.js";
 import { flag } from "./index.js";
 import { itemAC } from "./anticheat/item.js";
-import { getConfig, spawnProtectionRange } from "./config.js";
+import { ConfigKeys, getConfig } from "./config.js";
 
 const groundY = 1 / 64;
 
@@ -327,7 +327,7 @@ export function anticheat() {
   }, 0);
 
   // Spawn Protection
-  let spawnProtRange = () => Number(-spawnProtectionRange);
+  let spawnProtRange = () => Number(-getConfig(ConfigKeys.SPAWN_PROTECTION_RANGE));
 
   /// Anti-nuker
   SpawnProtection(

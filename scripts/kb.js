@@ -13,7 +13,7 @@ import {
 import { findDotProduct, flag } from "./index.js";
 import { Flags } from "./flags.js";
 import { getConfig } from "./config.js";
-import { reach_scalar } from "./commands/create_command.js";
+// import { reach_scalar } from "./commands/create_command.js";
 
 export const attackSpeed = {
   sword: 1.6,
@@ -120,7 +120,7 @@ function handleEntityAttackKnockback(
       x: newdir.x / kbX + vel.x,
       z: newdir.z / kbX + vel.z,
     },
-    player.isOnGround ? kbY : kbY + vel.y
+    player.isOnGround ? kbY : kbY + vel.y / 4
   );
 
   if (!(damagingEntity instanceof Player)) return;

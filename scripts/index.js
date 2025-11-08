@@ -13,7 +13,7 @@ import {
 } from "@minecraft/server";
 import { mainPlayerExec } from "./players.js";
 import { anticheat } from "./anticheat";
-import { chatCommand, maxEntities } from "./commands/create_command";
+import { chatCommand } from "./commands/create_command";
 import { beforePlayerGameModeChange } from "./before-events/player-gamemode-change.js";
 import { beforePlayerInteractWithEntity } from "./before-events/player-interact-with-entity.js";
 import { afterItemUse } from "./after-events/item-use.js";
