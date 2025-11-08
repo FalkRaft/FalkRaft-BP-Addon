@@ -19,7 +19,6 @@ import { beforePlayerInteractWithEntity } from "./before-events/player-interact-
 import { afterItemUse } from "./after-events/item-use.js";
 import { afterPlayerSpawn } from "./after-events/player-spawn.js";
 import { afterScriptEventReceive } from "./after-events/scriptevent-receive.js";
-import { afterPistonActivate } from "./after-events/piston-activate.js";
 import { antiNuker } from "./anticheat/anti-nuker";
 import { anti32k } from "./anticheat/anti-32k";
 import {
@@ -193,22 +192,23 @@ console.log("Loading afterEvents...");
 
 import { customkb } from "./kb.js";
 
-/// * afterEvents
-afterItemUse();
-system.waitTicks(5);
-afterPlayerSpawn();
-system.waitTicks(5);
-afterScriptEventReceive();
-system.waitTicks(5);
-antiNuker();
-system.waitTicks(5);
-anti32k();
-system.waitTicks(5);
-afterPistonActivate();
-system.waitTicks(5);
-
 world.afterEvents.worldLoad.subscribe(() => {
   try {
+    /// * afterEvents
+    afterItemUse();
+    system.waitTicks(5);
+    afterPlayerSpawn();
+    system.waitTicks(5);
+    afterScriptEventReceive();
+    system.waitTicks(5);
+    antiNuker();
+    system.waitTicks(5);
+    anti32k();
+
+    system.beforeEvents.shutdown.subscribe(() => {
+      // Cleanup or save state here
+      saveConfig();
+    });
 
     const start1 = Date.now();
     if (
