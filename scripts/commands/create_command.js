@@ -26,10 +26,6 @@ import {
   ConfigKeys,
 } from "../config.js";
 
-// Optional in‑memory only var
-export let spawnProtectionRange = 32;
-export let maxEntities = 30;
-
 /**
  * @param {Entity} player
  * @param maxDistance
