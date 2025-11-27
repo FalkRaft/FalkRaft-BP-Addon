@@ -4,3 +4,4 @@ node_modules/
 .vscode/
 pnpm-lock.yaml
 package.json
+.DS_Store
